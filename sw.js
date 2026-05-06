@@ -1,22 +1,19 @@
-const CACHE_NAME = 'kashif-v2';
-const ASSETS = [
+const CACHE_NAME = 'kashif-offline-v1';
+const ASSETS_TO_CACHE = [
     './',
     './index.html',
     './style.css',
     './script.js',
     './manifest.json',
-    './icon-512.svg',
-    'https://cdn.tailwindcss.com',
-    'https://unpkg.com/lucide@latest',
-    'https://cdn.jsdelivr.net/npm/chart.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js'
+    './icon-512.svg'
+    // Note: Other assets will be cached on the fly
 ];
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(ASSETS);
+            console.log('Service Worker: Caching essential assets');
+            return cache.addAll(ASSETS_TO_CACHE);
         }).then(() => self.skipWaiting())
     );
 });
@@ -27,6 +24,7 @@ self.addEventListener('activate', (event) => {
             return Promise.all(
                 cacheNames.map((cache) => {
                     if (cache !== CACHE_NAME) {
+                        console.log('Service Worker: Clearing old cache', cache);
                         return caches.delete(cache);
                     }
                 })
@@ -36,10 +34,31 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+    // For non-GET requests, just fetch
+    if (event.request.method !== 'GET') return;
+
     event.respondWith(
-        caches.match(event.request).then((response) => {
-            return response || fetch(event.request).catch(() => {
-                // Return a fallback if needed, but for now just fail silently
+        caches.match(event.request).then((cachedResponse) => {
+            // Cache First Strategy: Return cache if found, else fetch and cache
+            if (cachedResponse) {
+                return cachedResponse;
+            }
+
+            return fetch(event.request).then((response) => {
+                // Don't cache if not a valid response
+                if (!response || response.status !== 200 || response.type !== 'basic') {
+                    return response;
+                }
+
+                // Clone the response to store it in cache
+                const responseToCache = response.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                    cache.put(event.request, responseToCache);
+                });
+
+                return response;
+            }).catch(() => {
+                // If offline and not in cache, return nothing or a fallback
             });
         })
     );

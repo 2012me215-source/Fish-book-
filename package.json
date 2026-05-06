@@ -11,5 +11,15 @@
   },
   "devDependencies": {
     "vite": "^6.0.0"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.4",
+    "autoprefixer": "^10.5.0",
+    "chart.js": "^4.5.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
+    "lucide": "^1.14.0",
+    "postcss": "^8.5.14",
+    "tailwindcss": "^4.2.4"
   }
 }

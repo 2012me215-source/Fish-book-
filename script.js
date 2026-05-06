@@ -1,3 +1,24 @@
+import { Chart, registerables } from 'chart.js';
+import { createIcons, icons } from 'lucide';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+const renderIcons = () => {
+    try {
+        if (typeof createIcons === 'function' && icons) {
+            createIcons({
+                icons,
+                attrs: { 'stroke-width': 2 },
+                nameAttr: 'data-lucide'
+            });
+        }
+    } catch (e) {
+        console.error("Lucide icons error:", e);
+    }
+};
+
+Chart.register(...registerables);
+
 // --- State & Initialization ---
 
 const INITIAL_EXPENSES = [
@@ -23,7 +44,7 @@ let state = {
     fishSales: [],
     activeTab: "dashboard",
     editingIds: [],
-    isAuthenticated: localStorage.getItem("kashif_auth") === "true"
+    isAuthenticated: false // Always start as false for session-only login
 };
 
 const loadState = () => {
@@ -63,7 +84,7 @@ const handleLogin = (e) => {
 
     if (email === AUTH_CREDENTIALS.email && pass === AUTH_CREDENTIALS.password) {
         state.isAuthenticated = true;
-        localStorage.setItem("kashif_auth", "true");
+        // Removed localStorage.setItem("kashif_auth", "true") to require login every time
         loadState(); // Load sensitive data after auth
         errorBox.classList.add('hidden');
         checkAuth();
@@ -229,12 +250,14 @@ const renderDashboard = () => {
     `).join('');
 
     renderChart();
-    lucide.createIcons();
+    renderIcons();
 };
 
 let chartInstance = null;
 const renderChart = () => {
-    const ctx = document.getElementById('expenseChart').getContext('2d');
+    const canvas = document.getElementById('expenseChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
     if (chartInstance) chartInstance.destroy();
 
     const categories = ['Operational', 'Capital', 'Seeds', 'Misc'];
@@ -314,7 +337,7 @@ const renderOperational = () => {
             </div>
         </div>
     `;
-    lucide.createIcons();
+    renderIcons();
 };
 
 const renderCapital = () => {
@@ -366,7 +389,7 @@ const renderCapital = () => {
             </div>
         </div>
     `;
-    lucide.createIcons();
+    renderIcons();
 };
 
 const renderStock = () => {
@@ -419,7 +442,7 @@ const renderStock = () => {
             </div>
         </div>
     `;
-    lucide.createIcons();
+    renderIcons();
 };
 
 const renderPonds = () => {
@@ -470,7 +493,7 @@ const renderPonds = () => {
             </div>
         </div>
     `;
-    lucide.createIcons();
+    renderIcons();
 };
 
 const renderSales = () => {
@@ -517,7 +540,7 @@ const renderSales = () => {
             </div>
         </div>
     `;
-    lucide.createIcons();
+    renderIcons();
 };
 
 const renderAll = () => {
@@ -620,7 +643,6 @@ const removeSale = (idx) => {
 // --- PDF Generation ---
 
 const generatePdf = () => {
-    const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
@@ -641,7 +663,7 @@ const generatePdf = () => {
     doc.text("Financial Summary", 15, y);
     y += 10;
     
-    doc.autoTable({
+    autoTable(doc, {
         startY: y,
         head: [['Category', 'Amount (Rs.)']],
         body: [
@@ -670,6 +692,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateForm = document.getElementById('updateAuthForm');
     if (updateForm) updateForm.addEventListener('submit', handleUpdateAuth);
     
+    // Initial icon creation
+    renderIcons();
+
     document.getElementById('downloadPdfAll').addEventListener('click', generatePdf);
     document.getElementById('clearData').addEventListener('click', () => {
         if(confirm("Are you sure?")) {
@@ -677,4 +702,15 @@ document.addEventListener('DOMContentLoaded', () => {
             location.reload();
         }
     });
+});
+
+// Expose handlers to window for HTML onclick/onchange (since we are a module)
+Object.assign(window, {
+    addExpense, updateExpense, removeExpense,
+    addCapital, updateCapital, removeCapital,
+    addSeed, updateSeed, removeSeed,
+    addPond, updatePond, removePond,
+    addVariety, updateVariety, removeVariety,
+    addSale, updateSale, removeSale,
+    toggleEdit
 });
