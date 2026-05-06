@@ -16,14 +16,27 @@ const INITIAL_CAPITAL = [
 ];
 
 let state = {
-    expenses: JSON.parse(localStorage.getItem("kashif_expenses")) || INITIAL_EXPENSES,
-    capitalCosts: JSON.parse(localStorage.getItem("kashif_capital")) || INITIAL_CAPITAL,
-    fishSeeds: JSON.parse(localStorage.getItem("kashif_seeds")) || [],
-    fishStock: JSON.parse(localStorage.getItem("kashif_stock")) || [],
-    fishSales: JSON.parse(localStorage.getItem("kashif_sales")) || [],
+    expenses: INITIAL_EXPENSES,
+    capitalCosts: INITIAL_CAPITAL,
+    fishSeeds: [],
+    fishStock: [],
+    fishSales: [],
     activeTab: "dashboard",
     editingIds: [],
     isAuthenticated: localStorage.getItem("kashif_auth") === "true"
+};
+
+const loadState = () => {
+    if (!state.isAuthenticated) return;
+    try {
+        state.expenses = JSON.parse(localStorage.getItem("kashif_expenses")) || INITIAL_EXPENSES;
+        state.capitalCosts = JSON.parse(localStorage.getItem("kashif_capital")) || INITIAL_CAPITAL;
+        state.fishSeeds = JSON.parse(localStorage.getItem("kashif_seeds")) || [];
+        state.fishStock = JSON.parse(localStorage.getItem("kashif_stock")) || [];
+        state.fishSales = JSON.parse(localStorage.getItem("kashif_sales")) || [];
+    } catch (e) {
+        console.error("Failed to load records from storage:", e);
+    }
 };
 
 let editingSet = new Set();
@@ -51,6 +64,7 @@ const handleLogin = (e) => {
     if (email === AUTH_CREDENTIALS.email && pass === AUTH_CREDENTIALS.password) {
         state.isAuthenticated = true;
         localStorage.setItem("kashif_auth", "true");
+        loadState(); // Load sensitive data after auth
         errorBox.classList.add('hidden');
         checkAuth();
     } else {
@@ -69,6 +83,7 @@ const checkAuth = () => {
     const mainContainer = document.getElementById('mainContainer');
 
     if (state.isAuthenticated) {
+        loadState(); // Ensure state is loaded
         loginOverlay.classList.add('hidden');
         mainContainer.classList.remove('hidden');
         
