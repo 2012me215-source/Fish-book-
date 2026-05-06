@@ -22,10 +22,88 @@ let state = {
     fishStock: JSON.parse(localStorage.getItem("kashif_stock")) || [],
     fishSales: JSON.parse(localStorage.getItem("kashif_sales")) || [],
     activeTab: "dashboard",
-    editingIds: [] // Changed to array for easier JSON storage if needed, but we'll use a Set in memory
+    editingIds: [],
+    isAuthenticated: localStorage.getItem("kashif_auth") === "true"
 };
 
 let editingSet = new Set();
+
+// --- Auth Handling ---
+const getCredentials = () => {
+    try {
+        return JSON.parse(localStorage.getItem("kashif_credentials")) || {
+            email: "admin@kashif.com",
+            password: "password123"
+        };
+    } catch (e) {
+        return { email: "admin@kashif.com", password: "password123" };
+    }
+};
+
+let AUTH_CREDENTIALS = getCredentials();
+
+const handleLogin = (e) => {
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value;
+    const pass = document.getElementById('loginPassword').value;
+    const errorBox = document.getElementById('loginError');
+
+    if (email === AUTH_CREDENTIALS.email && pass === AUTH_CREDENTIALS.password) {
+        state.isAuthenticated = true;
+        localStorage.setItem("kashif_auth", "true");
+        errorBox.classList.add('hidden');
+        checkAuth();
+    } else {
+        errorBox.classList.remove('hidden');
+    }
+};
+
+const handleLogout = () => {
+    state.isAuthenticated = false;
+    localStorage.removeItem("kashif_auth");
+    location.reload();
+};
+
+const checkAuth = () => {
+    const loginOverlay = document.getElementById('loginOverlay');
+    const mainContainer = document.getElementById('mainContainer');
+
+    if (state.isAuthenticated) {
+        loginOverlay.classList.add('hidden');
+        mainContainer.classList.remove('hidden');
+        
+        // Pre-fill settings
+        if (document.getElementById('newUsername')) {
+            document.getElementById('newUsername').value = AUTH_CREDENTIALS.email;
+            document.getElementById('newPassword').value = AUTH_CREDENTIALS.password;
+        }
+        
+        renderAll();
+    } else {
+        loginOverlay.classList.remove('hidden');
+        mainContainer.classList.add('hidden');
+    }
+};
+
+const handleUpdateAuth = (e) => {
+    e.preventDefault();
+    const newEmail = document.getElementById('newUsername').value;
+    const newPass = document.getElementById('newPassword').value;
+    const msg = document.getElementById('settingsMsg');
+
+    const creds = { email: newEmail, password: newPass };
+    localStorage.setItem("kashif_credentials", JSON.stringify(creds));
+    AUTH_CREDENTIALS = creds;
+
+    msg.textContent = "Credentials updated successfully!";
+    msg.className = "text-xs font-bold text-center p-3 rounded-xl bg-emerald-50 text-emerald-600 block";
+    msg.classList.remove('hidden');
+    
+    setTimeout(() => {
+        msg.classList.add('hidden');
+        msg.classList.remove('block');
+    }, 3000);
+};
 
 // --- Selectors ---
 const totals = {
@@ -568,8 +646,14 @@ const generatePdf = () => {
 
 // --- Init ---
 document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
     initTabs();
-    renderAll();
+    
+    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+    
+    const updateForm = document.getElementById('updateAuthForm');
+    if (updateForm) updateForm.addEventListener('submit', handleUpdateAuth);
     
     document.getElementById('downloadPdfAll').addEventListener('click', generatePdf);
     document.getElementById('clearData').addEventListener('click', () => {

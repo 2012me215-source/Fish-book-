@@ -52,7 +52,43 @@
 </head>
 <body class="min-h-screen text-slate-900">
 
-    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-emerald-100/50 shadow-sm transition-all duration-300">
+    <!-- Login Overlay -->
+    <div id="loginOverlay" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl space-y-8 fade-in">
+            <div class="text-center space-y-2">
+                <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="lock" class="w-10 h-10"></i>
+                </div>
+                <h2 class="text-3xl font-black text-slate-900 tracking-tight">Access Restricted</h2>
+                <p class="text-slate-500 font-medium">Please sign in to manage your aquaculture records.</p>
+            </div>
+
+            <form id="loginForm" class="space-y-4">
+                <div class="space-y-1">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-4">Email Address</label>
+                    <input type="email" id="loginEmail" required placeholder="admin@kashif.com" class="w-full h-14 px-6 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 transition-all font-bold">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-4">Password</label>
+                    <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full h-14 px-6 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 transition-all font-bold">
+                </div>
+                <div id="loginError" class="hidden text-sm font-bold text-red-500 text-center bg-red-50 p-3 rounded-xl">
+                    Invalid email or password.
+                </div>
+                <button type="submit" class="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-lg shadow-emerald-200 transition-all font-black uppercase tracking-widest mt-4">
+                    Unlock Dashboard
+                </button>
+            </form>
+            
+            <p class="text-center text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                Kashif Aquaculture Excellence &copy; 2026
+            </p>
+        </div>
+    </div>
+
+    <!-- Main Content (Hidden until login) -->
+    <div id="mainContainer" class="hidden">
+        <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-emerald-100/50 shadow-sm transition-all duration-300">
         <div class="container mx-auto px-4 h-24 flex items-center justify-between">
             <!-- Logo Section -->
             <div class="flex items-center gap-5 group cursor-pointer">
@@ -81,6 +117,9 @@
 
             <!-- Global Actions -->
             <div class="flex items-center gap-2">
+                <button id="logoutBtn" class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="Logout">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
                 <button id="downloadPdfAll" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-100 transition-all font-bold text-sm">
                     <i data-lucide="download" class="w-4 h-4"></i> Download Full Report
                 </button>
@@ -111,6 +150,9 @@
             </button>
             <button data-tab="sales" class="tab-trigger flex items-center px-6 py-3 whitespace-nowrap rounded-xl font-extrabold uppercase tracking-tighter transition-all duration-300 text-emerald-800/60 hover:bg-emerald-100/50">
                 <i data-lucide="dollar-sign" class="w-5 h-5 mr-2"></i> Fish Sales
+            </button>
+            <button data-tab="settings" class="tab-trigger flex items-center px-6 py-3 whitespace-nowrap rounded-xl font-extrabold uppercase tracking-tighter transition-all duration-300 text-slate-800/60 hover:bg-slate-100/50">
+                <i data-lucide="settings" class="w-5 h-5 mr-2"></i> Settings
             </button>
         </div>
 
@@ -226,7 +268,37 @@
                 <!-- Sales records here -->
             </div>
         </div>
-    </main>
+
+        <!-- Settings Content -->
+        <div id="tab-settings" class="tab-content hidden space-y-8">
+            <div class="max-w-md mx-auto bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+                <div class="flex items-center gap-4 mb-8">
+                    <div class="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-600">
+                        <i data-lucide="shield-check" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-black text-slate-900">Security Settings</h3>
+                        <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Update your master credentials</p>
+                    </div>
+                </div>
+
+                <form id="updateAuthForm" class="space-y-4">
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-4">New Username</label>
+                        <input type="text" id="newUsername" required class="w-full h-14 px-6 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 transition-all font-bold">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-4">New Password</label>
+                        <input type="password" id="newPassword" required class="w-full h-14 px-6 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 transition-all font-bold">
+                    </div>
+                    <div id="settingsMsg" class="hidden text-xs font-bold text-center p-3 rounded-xl"></div>
+                    <button type="submit" class="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-lg shadow-indigo-200 transition-all font-black uppercase tracking-widest mt-4">
+                        Save Changes
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <script src="script.js"></script>
     <script>
