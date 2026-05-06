@@ -1,16 +1,246 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kashif Aquaculture Excellence</title>
     <meta name="description" content="Management system for Kashif Aquaculture Excellence" />
     <meta name="theme-color" content="#10b981" />
-    <link rel="apple-touch-icon" href="/icon-512.svg" />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-512.svg">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jsPDF and AutoTable CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap');
+        
+        :root {
+            --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+        
+        body {
+            font-family: var(--font-sans);
+            background-color: #f8fafc;
+        }
 
+        .font-mono {
+            font-family: var(--font-mono);
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .active-tab {
+            background-color: rgb(5, 150, 105) !important;
+            color: white !important;
+            box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.2) !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-900">
+
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-emerald-100/50 shadow-sm transition-all duration-300">
+        <div class="container mx-auto px-4 h-24 flex items-center justify-between">
+            <!-- Logo Section -->
+            <div class="flex items-center gap-5 group cursor-pointer">
+                <div class="relative flex items-center justify-center">
+                    <div class="absolute inset-0 bg-emerald-500/20 blur-xl rounded-full scale-150"></div>
+                    <div class="relative w-16 h-16 flex items-center justify-center">
+                        <div class="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-[1.25rem] flex items-center justify-center shadow-xl shadow-emerald-200/50 relative overflow-hidden">
+                            <i data-lucide="fish" class="text-white w-7 h-7 relative z-10"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-col justify-center">
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-4xl font-black tracking-tight text-slate-900 leading-none">
+                            KASHIF<span class="text-emerald-500">.</span>
+                        </h1>
+                    </div>
+                    <div class="flex items-center gap-3 mt-1.5">
+                        <div class="h-[2px] w-8 bg-gradient-to-r from-emerald-500 to-transparent rounded-full"></div>
+                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[0.5em] leading-none whitespace-nowrap">
+                            Aquaculture <span class="text-emerald-600">Excellence</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Global Actions -->
+            <div class="flex items-center gap-2">
+                <button id="downloadPdfAll" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-100 transition-all font-bold text-sm">
+                    <i data-lucide="download" class="w-4 h-4"></i> Download Full Report
+                </button>
+                <button id="clearData" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" title="Clear All Data">
+                    <i data-lucide="trash-2" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- Tabs Navigation -->
+        <div class="flex items-center space-x-2 overflow-x-auto pb-4 mb-8 scrollbar-hide" id="tabsList">
+            <button data-tab="dashboard" class="tab-trigger active-tab flex items-center px-6 py-3 whitespace-nowrap rounded-xl font-extrabold uppercase tracking-tighter transition-all duration-300 text-emerald-800/60 hover:bg-emerald-100/50">
+                <i data-lucide="layout-dashboard" class="w-5 h-5 mr-2"></i> Dashboard
+            </button>
+            <button data-tab="operational" class="tab-trigger flex items-center px-6 py-3 whitespace-nowrap rounded-xl font-extrabold uppercase tracking-tighter transition-all duration-300 text-emerald-800/60 hover:bg-emerald-100/50">
+                <i data-lucide="package" class="w-5 h-5 mr-2"></i> Operational
+            </button>
+            <button data-tab="capital" class="tab-trigger flex items-center px-6 py-3 whitespace-nowrap rounded-xl font-extrabold uppercase tracking-tighter transition-all duration-300 text-blue-800/60 hover:bg-blue-100/50">
+                <i data-lucide="warehouse" class="w-5 h-5 mr-2"></i> Capital
+            </button>
+            <button data-tab="stock" class="tab-trigger flex items-center px-6 py-3 whitespace-nowrap rounded-xl font-extrabold uppercase tracking-tighter transition-all duration-300 text-amber-800/60 hover:bg-amber-100/50">
+                <i data-lucide="fish" class="w-5 h-5 mr-2"></i> Fish Seeds
+            </button>
+            <button data-tab="ponds" class="tab-trigger flex items-center px-6 py-3 whitespace-nowrap rounded-xl font-extrabold uppercase tracking-tighter transition-all duration-300 text-blue-800/60 hover:bg-blue-100/50">
+                <i data-lucide="waves" class="w-5 h-5 mr-2"></i> Pond Inventory
+            </button>
+            <button data-tab="sales" class="tab-trigger flex items-center px-6 py-3 whitespace-nowrap rounded-xl font-extrabold uppercase tracking-tighter transition-all duration-300 text-emerald-800/60 hover:bg-emerald-100/50">
+                <i data-lucide="dollar-sign" class="w-5 h-5 mr-2"></i> Fish Sales
+            </button>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div id="tab-dashboard" class="tab-content grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5 group hover:shadow-xl hover:shadow-emerald-500/5 transition-all">
+                        <div class="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+                            <i data-lucide="trending-up" class="w-8 h-8"></i>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Investment</p>
+                            <h3 class="text-3xl font-black text-slate-900 font-mono tracking-tighter" id="totalInvestment">Rs. 0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5 group hover:shadow-xl hover:shadow-blue-500/5 transition-all">
+                        <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+                            <i data-lucide="dollar-sign" class="w-8 h-8"></i>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Sales</p>
+                            <h3 class="text-3xl font-black text-slate-900 font-mono tracking-tighter" id="totalSales">Rs. 0</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Stock Card -->
+                <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div class="border-b border-indigo-50 bg-indigo-50/30 p-4">
+                        <h3 class="text-base font-black uppercase tracking-wider flex items-center gap-3 text-indigo-900">
+                            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg"><i data-lucide="waves" class="w-4 h-4 text-white"></i></div>
+                            Live Stock Summary
+                        </h3>
+                    </div>
+                    <div class="p-5 space-y-4" id="liveStockList">
+                        <!-- Dynamic content here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Summary Sidebar -->
+            <div class="space-y-6">
+                <div class="bg-white rounded-3xl overflow-hidden border border-emerald-100 shadow-xl">
+                    <div class="bg-gradient-to-r from-emerald-600 to-teal-600 p-4 text-white">
+                        <h3 class="text-lg font-black uppercase tracking-widest flex items-center gap-2">
+                            <i data-lucide="layout-dashboard" class="w-5 h-5 text-emerald-100"></i> Quick Summary
+                        </h3>
+                    </div>
+                    <div class="p-6 space-y-4" id="quickSummary">
+                        <!-- Dynamic items -->
+                    </div>
+                </div>
+
+                <!-- Net Balance Card -->
+                <div id="netBalanceBox" class="p-6 rounded-3xl text-white shadow-xl flex flex-col gap-2">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-md">
+                            <i data-lucide="trending-up" class="w-5 h-5"></i>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[10px] font-black uppercase tracking-widest opacity-80">Net Balance</span>
+                            <span class="text-xs font-bold" id="balanceStatus">Profit/Loss Status</span>
+                        </div>
+                    </div>
+                    <span class="text-3xl font-black font-mono" id="netBalanceAmount">Rs. 0</span>
+                </div>
+            </div>
+
+            <!-- Chart Section -->
+            <div class="lg:col-span-3 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <h3 class="text-lg font-black flex items-center gap-2 mb-6">
+                    <i data-lucide="bar-chart" class="w-5 h-5 text-emerald-600"></i> Expense Distribution
+                </h3>
+                <div class="h-[400px]">
+                    <canvas id="expenseChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Operational Content -->
+        <div id="tab-operational" class="tab-content hidden space-y-8">
+            <div id="operationalCards" class="space-y-6">
+                <!-- Operational cards will be rendered here -->
+            </div>
+        </div>
+
+        <!-- Capital Content -->
+        <div id="tab-capital" class="tab-content hidden space-y-8">
+            <div id="capitalCards" class="space-y-6">
+                <!-- Capital cards will be rendered here -->
+            </div>
+        </div>
+
+        <!-- Stock Content -->
+        <div id="tab-stock" class="tab-content hidden space-y-8">
+            <div id="stockContainer" class="max-w-4xl mx-auto space-y-6">
+                <!-- Stock records here -->
+            </div>
+        </div>
+
+        <!-- Ponds Content -->
+        <div id="tab-ponds" class="tab-content hidden space-y-8">
+            <div id="pondsContainer" class="max-w-5xl mx-auto space-y-6">
+                <!-- Ponds records here -->
+            </div>
+        </div>
+
+        <!-- Sales Content -->
+        <div id="tab-sales" class="tab-content hidden space-y-8">
+            <div id="salesContainer" class="max-w-4xl mx-auto space-y-6">
+                <!-- Sales records here -->
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker registered', reg))
+                    .catch(err => console.error('Service Worker failed', err));
+            });
+        }
+    </script>
+</body>
+</html>
