@@ -1,23 +1,15 @@
-import { Chart, registerables } from 'chart.js';
-import { createIcons, icons } from 'lucide';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import Dexie from 'https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/dexie.mjs';
+import { createIcons, icons } from 'https://cdn.jsdelivr.net/npm/lucide@0.412.0/+esm';
 
-const renderIcons = () => {
-    try {
-        if (typeof createIcons === 'function' && icons) {
-            createIcons({
-                icons,
-                attrs: { 'stroke-width': 2 },
-                nameAttr: 'data-lucide'
-            });
-        }
-    } catch (e) {
-        console.error("Lucide icons error:", e);
-    }
-};
-
-Chart.register(...registerables);
+// --- Database Initialization ---
+const db = new Dexie('KashifAquacultureDB');
+db.version(1).stores({
+    expenses: 'id, name, date, category',
+    capitalCosts: 'id, name, date, category',
+    fishSeeds: 'id, variety, date',
+    fishStock: 'id, pondNumber, date',
+    fishSales: 'id, variety, date'
+});
 
 // --- State & Initialization ---
 
@@ -37,40 +29,25 @@ const INITIAL_CAPITAL = [
 ];
 
 let state = {
-    expenses: INITIAL_EXPENSES,
-    capitalCosts: INITIAL_CAPITAL,
+    expenses: [],
+    capitalCosts: [],
     fishSeeds: [],
     fishStock: [],
     fishSales: [],
     activeTab: "dashboard",
-    editingIds: [],
-    isAuthenticated: false // Always start as false for session-only login
+    isAuthenticated: localStorage.getItem("kashif_auth") === "true",
+    adminEmail: "2012me215@gmail.com" // From user metadata
 };
-
-const loadState = () => {
-    if (!state.isAuthenticated) return;
-    try {
-        state.expenses = JSON.parse(localStorage.getItem("kashif_expenses")) || INITIAL_EXPENSES;
-        state.capitalCosts = JSON.parse(localStorage.getItem("kashif_capital")) || INITIAL_CAPITAL;
-        state.fishSeeds = JSON.parse(localStorage.getItem("kashif_seeds")) || [];
-        state.fishStock = JSON.parse(localStorage.getItem("kashif_stock")) || [];
-        state.fishSales = JSON.parse(localStorage.getItem("kashif_sales")) || [];
-    } catch (e) {
-        console.error("Failed to load records from storage:", e);
-    }
-};
-
-let editingSet = new Set();
 
 // --- Auth Handling ---
 const getCredentials = () => {
     try {
         return JSON.parse(localStorage.getItem("kashif_credentials")) || {
-            email: "admin@kashif.com",
+            email: state.adminEmail,
             password: "password123"
         };
     } catch (e) {
-        return { email: "admin@kashif.com", password: "password123" };
+        return { email: state.adminEmail, password: "password123" };
     }
 };
 
@@ -84,8 +61,7 @@ const handleLogin = (e) => {
 
     if (email === AUTH_CREDENTIALS.email && pass === AUTH_CREDENTIALS.password) {
         state.isAuthenticated = true;
-        // Removed localStorage.setItem("kashif_auth", "true") to require login every time
-        loadState(); // Load sensitive data after auth
+        localStorage.setItem("kashif_auth", "true");
         errorBox.classList.add('hidden');
         checkAuth();
     } else {
@@ -99,12 +75,11 @@ const handleLogout = () => {
     location.reload();
 };
 
-const checkAuth = () => {
+const checkAuth = async () => {
     const loginOverlay = document.getElementById('loginOverlay');
     const mainContainer = document.getElementById('mainContainer');
 
     if (state.isAuthenticated) {
-        loadState(); // Ensure state is loaded
         loginOverlay.classList.add('hidden');
         mainContainer.classList.remove('hidden');
         
@@ -114,6 +89,7 @@ const checkAuth = () => {
             document.getElementById('newPassword').value = AUTH_CREDENTIALS.password;
         }
         
+        await loadData();
         renderAll();
     } else {
         loginOverlay.classList.remove('hidden');
@@ -155,13 +131,22 @@ const totals = {
 // --- Utils ---
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-const saveState = () => {
-    localStorage.setItem("kashif_expenses", JSON.stringify(state.expenses));
-    localStorage.setItem("kashif_capital", JSON.stringify(state.capitalCosts));
-    localStorage.setItem("kashif_seeds", JSON.stringify(state.fishSeeds));
-    localStorage.setItem("kashif_stock", JSON.stringify(state.fishStock));
-    localStorage.setItem("kashif_sales", JSON.stringify(state.fishSales));
-    renderAll();
+const loadData = async () => {
+    state.expenses = await db.expenses.toArray();
+    state.capitalCosts = await db.capitalCosts.toArray();
+    state.fishSeeds = await db.fishSeeds.toArray();
+    state.fishStock = await db.fishStock.toArray();
+    state.fishSales = await db.fishSales.toArray();
+
+    // Default initialization if empty
+    if (state.expenses.length === 0) {
+        await db.expenses.bulkAdd(INITIAL_EXPENSES);
+        state.expenses = await db.expenses.toArray();
+    }
+    if (state.capitalCosts.length === 0) {
+        await db.capitalCosts.bulkAdd(INITIAL_CAPITAL);
+        state.capitalCosts = await db.capitalCosts.toArray();
+    }
 };
 
 const getNextDate = (items) => {
@@ -250,7 +235,7 @@ const renderDashboard = () => {
     `).join('');
 
     renderChart();
-    renderIcons();
+    createIcons({ icons });
 };
 
 let chartInstance = null;
@@ -286,21 +271,16 @@ const renderChart = () => {
     });
 };
 
-const toggleEdit = (id) => {
-    if (editingSet.has(id)) editingSet.delete(id);
-    else editingSet.add(id);
-    renderAll();
-};
-
 const renderOperational = () => {
     const container = document.getElementById('operationalCards');
+    if (!container) return;
     container.innerHTML = `
         <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-black text-emerald-900 flex items-center gap-2">
                     <i data-lucide="package" class="w-6 h-6"></i> Operational Expenses
                 </h3>
-                <button onclick="addExpense()" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-emerald-100">+ Add Entry</button>
+                <button id="addExpenseBtn" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-emerald-100">+ Add Entry</button>
             </div>
             <div class="table-container">
                 <table>
@@ -317,14 +297,13 @@ const renderOperational = () => {
                     <tbody>
                         ${state.expenses.map((e, idx) => `
                             <tr>
-                                <td><input type="text" value="${e.name}" onchange="updateExpense(${idx}, 'name', this.value)" ${!editingSet.has(e.id) ? 'disabled' : ''} class="bg-transparent border-none w-full text-sm font-bold disabled:text-slate-500"></td>
-                                <td><input type="date" value="${e.date}" onchange="updateExpense(${idx}, 'date', this.value)" ${!editingSet.has(e.id) ? 'disabled' : ''} class="bg-transparent border-none text-xs disabled:text-slate-400"></td>
-                                <td><input type="number" value="${e.quantity}" onchange="updateExpense(${idx}, 'quantity', this.value)" ${!editingSet.has(e.id) ? 'disabled' : ''} class="bg-transparent border-none w-16 text-sm disabled:text-slate-500"></td>
-                                <td><input type="number" value="${e.rate}" onchange="updateExpense(${idx}, 'rate', this.value)" ${!editingSet.has(e.id) ? 'disabled' : ''} class="bg-transparent border-none w-20 text-sm disabled:text-slate-500"></td>
+                                <td><input type="text" value="${e.name}" data-idx="${idx}" data-field="name" class="op-input bg-transparent border-none w-full text-sm font-bold text-slate-800"></td>
+                                <td><input type="date" value="${e.date}" data-idx="${idx}" data-field="date" class="op-input bg-transparent border-none text-xs text-slate-500"></td>
+                                <td><input type="number" value="${e.quantity}" data-idx="${idx}" data-field="quantity" class="op-input bg-transparent border-none w-16 text-sm text-slate-800"></td>
+                                <td><input type="number" value="${e.rate}" data-idx="${idx}" data-field="rate" class="op-input bg-transparent border-none w-20 text-sm text-slate-800"></td>
                                 <td class="text-right font-mono font-bold text-emerald-600">${Number(e.total).toLocaleString()}</td>
                                 <td class="text-right flex items-center gap-2">
-                                    <button onclick="toggleEdit('${e.id}')" class="${editingSet.has(e.id) ? 'text-emerald-600' : 'text-slate-300'}"><i data-lucide="${editingSet.has(e.id) ? 'check' : 'pencil'}" class="w-4 h-4"></i></button>
-                                    <button onclick="removeExpense(${idx})" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                    <button class="remove-expense-btn text-slate-300 hover:text-red-500" data-idx="${idx}"><i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i></button>
                                 </td>
                             </tr>
                         `).join('')}
@@ -337,18 +316,30 @@ const renderOperational = () => {
             </div>
         </div>
     `;
-    renderIcons();
+    attachOperationalListeners();
+    createIcons({ icons });
+};
+
+const attachOperationalListeners = () => {
+    document.getElementById('addExpenseBtn')?.addEventListener('click', addExpense);
+    document.querySelectorAll('.op-input').forEach(input => {
+        input.addEventListener('change', (e) => updateExpense(e.target.dataset.idx, e.target.dataset.field, e.target.value));
+    });
+    document.querySelectorAll('.remove-expense-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => removeExpense(e.currentTarget.dataset.idx));
+    });
 };
 
 const renderCapital = () => {
     const container = document.getElementById('capitalCards');
+    if (!container) return;
     container.innerHTML = `
         <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-black text-blue-900 flex items-center gap-2">
                     <i data-lucide="warehouse" class="w-6 h-6"></i> Capital Costs
                 </h3>
-                <button onclick="addCapital()" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-blue-100">+ Add Entry</button>
+                <button id="addCapitalBtn" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-blue-100">+ Add Entry</button>
             </div>
             <div class="table-container">
                 <table>
@@ -365,19 +356,19 @@ const renderCapital = () => {
                     <tbody>
                         ${state.capitalCosts.map((c, idx) => `
                             <tr>
-                                <td><input type="text" value="${c.name}" onchange="updateCapital(${idx}, 'name', this.value)" class="bg-transparent border-none w-full text-sm font-medium"></td>
-                                <td><input type="date" value="${c.date}" onchange="updateCapital(${idx}, 'date', this.value)" class="bg-transparent border-none text-xs"></td>
+                                <td><input type="text" value="${c.name}" data-idx="${idx}" data-field="name" class="cap-input bg-transparent border-none w-full text-sm font-medium"></td>
+                                <td><input type="date" value="${c.date}" data-idx="${idx}" data-field="date" class="cap-input bg-transparent border-none text-xs"></td>
                                 <td>
                                     ${c.category === 'Land Rent' ? `
                                         <div class="flex items-center gap-2">
-                                            <input type="number" placeholder="Acres" value="${c.acres || ''}" onchange="updateCapital(${idx}, 'acres', this.value)" class="w-16 bg-transparent border-none text-xs">
-                                            <input type="text" placeholder="Owner" value="${c.ownerName || ''}" onchange="updateCapital(${idx}, 'ownerName', this.value)" class="bg-transparent border-none text-xs">
+                                            <input type="number" placeholder="Acres" value="${c.acres || ''}" data-idx="${idx}" data-field="acres" class="cap-input w-16 bg-transparent border-none text-xs">
+                                            <input type="text" placeholder="Owner" value="${c.ownerName || ''}" data-idx="${idx}" data-field="ownerName" class="cap-input bg-transparent border-none text-xs">
                                         </div>
                                     ` : '<span class="text-xs text-slate-300">Fixed Cost</span>'}
                                 </td>
-                                <td><input type="number" value="${c.cost || c.rentPerAcre || 0}" onchange="updateCapital(${idx}, '${c.category === 'Land Rent' ? 'rentPerAcre' : 'cost'}', this.value)" class="bg-transparent border-none w-24 text-sm"></td>
+                                <td><input type="number" value="${c.cost || c.rentPerAcre || 0}" data-idx="${idx}" data-field="${c.category === 'Land Rent' ? 'rentPerAcre' : 'cost'}" class="cap-input bg-transparent border-none w-24 text-sm"></td>
                                 <td class="text-right font-mono font-bold text-blue-600">${c.total.toLocaleString()}</td>
-                                <td class="text-right"><button onclick="removeCapital(${idx})" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>
+                                <td class="text-right"><button class="remove-capital-btn text-slate-300 hover:text-red-500" data-idx="${idx}"><i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i></button></td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -389,18 +380,30 @@ const renderCapital = () => {
             </div>
         </div>
     `;
-    renderIcons();
+    attachCapitalListeners();
+    createIcons({ icons });
+};
+
+const attachCapitalListeners = () => {
+    document.getElementById('addCapitalBtn')?.addEventListener('click', addCapital);
+    document.querySelectorAll('.cap-input').forEach(input => {
+        input.addEventListener('change', (e) => updateCapital(e.target.dataset.idx, e.target.dataset.field, e.target.value));
+    });
+    document.querySelectorAll('.remove-capital-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => removeCapital(e.currentTarget.dataset.idx));
+    });
 };
 
 const renderStock = () => {
     const container = document.getElementById('stockContainer');
+    if (!container) return;
     container.innerHTML = `
         <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-black text-amber-900 flex items-center gap-2">
                     <i data-lucide="fish" class="w-6 h-6"></i> Fish Seed Purchases
                 </h3>
-                <button onclick="addSeed()" class="bg-amber-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-amber-100">+ Add Seed</button>
+                <button id="addSeedBtn" class="bg-amber-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-amber-100">+ Add Seed</button>
             </div>
             <div class="table-container">
                 <table>
@@ -417,12 +420,12 @@ const renderStock = () => {
                     <tbody>
                         ${state.fishSeeds.map((s, idx) => `
                             <tr>
-                                <td><input type="date" value="${s.date}" onchange="updateSeed(${idx}, 'date', this.value)" class="bg-transparent border-none text-xs"></td>
-                                <td><input type="text" value="${s.variety}" onchange="updateSeed(${idx}, 'variety', this.value)" class="bg-transparent border-none w-full text-sm font-medium"></td>
-                                <td><input type="number" value="${s.quantity}" onchange="updateSeed(${idx}, 'quantity', this.value)" class="bg-transparent border-none w-20 text-sm"></td>
-                                <td><input type="number" value="${s.pricePerSeed}" onchange="updateSeed(${idx}, 'pricePerSeed', this.value)" class="bg-transparent border-none w-24 text-sm"></td>
+                                <td><input type="date" value="${s.date}" data-idx="${idx}" data-field="date" class="seed-input bg-transparent border-none text-xs"></td>
+                                <td><input type="text" value="${s.variety}" data-idx="${idx}" data-field="variety" class="seed-input bg-transparent border-none w-full text-sm font-medium"></td>
+                                <td><input type="number" value="${s.quantity}" data-idx="${idx}" data-field="quantity" class="seed-input bg-transparent border-none w-20 text-sm"></td>
+                                <td><input type="number" value="${s.pricePerSeed}" data-idx="${idx}" data-field="pricePerSeed" class="seed-input bg-transparent border-none w-24 text-sm"></td>
                                 <td class="text-right font-mono font-bold text-amber-600">${s.total.toLocaleString()}</td>
-                                <td class="text-right"><button onclick="removeSeed(${idx})" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>
+                                <td class="text-right"><button class="remove-seed-btn text-slate-300 hover:text-red-500" data-idx="${idx}"><i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i></button></td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -442,11 +445,23 @@ const renderStock = () => {
             </div>
         </div>
     `;
-    renderIcons();
+    attachSeedListeners();
+    createIcons({ icons });
+};
+
+const attachSeedListeners = () => {
+    document.getElementById('addSeedBtn')?.addEventListener('click', addSeed);
+    document.querySelectorAll('.seed-input').forEach(input => {
+        input.addEventListener('change', (e) => updateSeed(e.target.dataset.idx, e.target.dataset.field, e.target.value));
+    });
+    document.querySelectorAll('.remove-seed-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => removeSeed(e.currentTarget.dataset.idx));
+    });
 };
 
 const renderPonds = () => {
     const container = document.getElementById('pondsContainer');
+    if (!container) return;
     container.innerHTML = `
         <div class="flex items-center justify-between mb-8">
             <div>
@@ -455,29 +470,29 @@ const renderPonds = () => {
                 </h2>
                 <p class="text-slate-500 text-sm">Manage quantities for each pond.</p>
             </div>
-            <button onclick="addPond()" class="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg shadow-blue-100">+ Add New Pond</button>
+            <button id="addPondBtn" class="bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg shadow-blue-100">+ Add New Pond</button>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             ${state.fishStock.map((pond, pIdx) => `
                 <div class="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-xl transition-all">
                     <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 flex justify-between items-center text-white">
                         <div class="flex items-center gap-3">
-                            <input type="text" value="${pond.pondNumber}" onchange="updatePond(${pIdx}, 'pondNumber', this.value)" class="w-12 bg-white/20 border-none rounded text-center font-black">
-                            <input type="date" value="${pond.date}" onchange="updatePond(${pIdx}, 'date', this.value)" class="bg-transparent border-none text-[10px] text-blue-100">
+                            <input type="text" value="${pond.pondNumber}" data-pidx="${pIdx}" data-field="pondNumber" class="pond-input w-12 bg-white/20 border-none rounded text-center font-black">
+                            <input type="date" value="${pond.date}" data-pidx="${pIdx}" data-field="date" class="pond-input bg-transparent border-none text-[10px] text-blue-100">
                         </div>
-                        <button onclick="removePond(${pIdx})" class="text-white/60 hover:text-white"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        <button class="remove-pond-btn text-white/60 hover:text-white" data-pidx="${pIdx}"><i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i></button>
                     </div>
                     <div class="p-4 space-y-4">
                         <div class="space-y-2">
                             ${pond.varieties.map((v, vIdx) => `
                                 <div class="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border border-slate-100">
-                                    <input type="text" value="${v.name}" onchange="updateVariety(${pIdx}, ${vIdx}, 'name', this.value)" placeholder="Variety" class="bg-transparent border-none text-xs font-bold w-full">
-                                    <input type="number" value="${v.quantity}" onchange="updateVariety(${pIdx}, ${vIdx}, 'quantity', this.value)" class="bg-white w-16 h-7 text-xs text-right rounded-lg border border-slate-200 p-1">
-                                    <button onclick="removeVariety(${pIdx}, ${vIdx})" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                    <input type="text" value="${v.name}" placeholder="Variety" data-pidx="${pIdx}" data-vidx="${vIdx}" data-field="name" class="var-input bg-transparent border-none text-xs font-bold w-full">
+                                    <input type="number" value="${v.quantity}" data-pidx="${pIdx}" data-vidx="${vIdx}" data-field="quantity" class="var-input bg-white w-16 h-7 text-xs text-right rounded-lg border border-slate-200 p-1">
+                                    <button class="remove-variety-btn text-slate-300 hover:text-red-500" data-pidx="${pIdx}" data-vidx="${vIdx}"><i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i></button>
                                 </div>
                             `).join('')}
                         </div>
-                        <button onclick="addVariety(${pIdx})" class="w-full py-2 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl">+ Add Variety</button>
+                        <button class="add-variety-btn w-full py-2 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl" data-pidx="${pIdx}">+ Add Variety</button>
                         <div class="pt-4 border-t border-slate-100 flex justify-between items-center">
                             <span class="text-[10px] font-black text-slate-400 uppercase">Pond Stock:</span>
                             <span class="text-xl font-black text-blue-600 font-mono">${pond.varieties.reduce((s, v) => s + (Number(v.quantity) || 0), 0).toLocaleString()}</span>
@@ -493,18 +508,39 @@ const renderPonds = () => {
             </div>
         </div>
     `;
-    renderIcons();
+    attachPondListeners();
+    createIcons({ icons });
+};
+
+const attachPondListeners = () => {
+    document.getElementById('addPondBtn')?.addEventListener('click', addPond);
+    document.querySelectorAll('.pond-input').forEach(input => {
+        input.addEventListener('change', (e) => updatePond(e.target.dataset.pidx, e.target.dataset.field, e.target.value));
+    });
+    document.querySelectorAll('.remove-pond-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => removePond(e.currentTarget.dataset.pidx));
+    });
+    document.querySelectorAll('.var-input').forEach(input => {
+        input.addEventListener('change', (e) => updateVariety(e.target.dataset.pidx, e.target.dataset.vidx, e.target.dataset.field, e.target.value));
+    });
+    document.querySelectorAll('.add-variety-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => addVariety(e.currentTarget.dataset.pidx));
+    });
+    document.querySelectorAll('.remove-variety-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => removeVariety(e.currentTarget.dataset.pidx, e.currentTarget.dataset.vidx));
+    });
 };
 
 const renderSales = () => {
     const container = document.getElementById('salesContainer');
+    if (!container) return;
     container.innerHTML = `
         <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-black text-emerald-900 flex items-center gap-2">
                     <i data-lucide="dollar-sign" class="w-6 h-6"></i> Fish Sales Income
                 </h3>
-                <button onclick="addSale()" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-emerald-100">+ Add Sale</button>
+                <button id="addSaleBtn" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-emerald-100">+ Add Sale</button>
             </div>
             <div class="table-container">
                 <table>
@@ -522,13 +558,13 @@ const renderSales = () => {
                     <tbody>
                         ${state.fishSales.map((s, idx) => `
                             <tr>
-                                <td><input type="date" value="${s.date}" onchange="updateSale(${idx}, 'date', this.value)" class="bg-transparent border-none text-xs"></td>
-                                <td><input type="text" value="${s.variety}" onchange="updateSale(${idx}, 'variety', this.value)" class="bg-transparent border-none w-full text-sm font-bold"></td>
-                                <td><input type="number" value="${s.fishCount}" onchange="updateSale(${idx}, 'fishCount', this.value)" class="bg-transparent border-none w-14 text-sm"></td>
-                                <td><input type="number" value="${s.weightKg}" onchange="updateSale(${idx}, 'weightKg', this.value)" class="bg-transparent border-none w-16 text-sm"></td>
-                                <td><input type="number" value="${s.ratePerKg}" onchange="updateSale(${idx}, 'ratePerKg', this.value)" class="bg-transparent border-none w-16 text-sm"></td>
+                                <td><input type="date" value="${s.date}" data-idx="${idx}" data-field="date" class="sale-input bg-transparent border-none text-xs"></td>
+                                <td><input type="text" value="${s.variety}" data-idx="${idx}" data-field="variety" class="sale-input bg-transparent border-none w-full text-sm font-bold"></td>
+                                <td><input type="number" value="${s.fishCount}" data-idx="${idx}" data-field="fishCount" class="sale-input bg-transparent border-none w-14 text-sm"></td>
+                                <td><input type="number" value="${s.weightKg}" data-idx="${idx}" data-field="weightKg" class="sale-input bg-transparent border-none w-16 text-sm"></td>
+                                <td><input type="number" value="${s.ratePerKg}" data-idx="${idx}" data-field="ratePerKg" class="sale-input bg-transparent border-none w-16 text-sm"></td>
                                 <td class="text-right font-mono font-bold text-emerald-600">${s.totalPrice.toLocaleString()}</td>
-                                <td class="text-right"><button onclick="removeSale(${idx})" class="text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>
+                                <td class="text-right"><button class="remove-sale-btn text-slate-300 hover:text-red-500" data-idx="${idx}"><i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i></button></td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -540,10 +576,22 @@ const renderSales = () => {
             </div>
         </div>
     `;
-    renderIcons();
+    attachSalesListeners();
+    createIcons({ icons });
+};
+
+const attachSalesListeners = () => {
+    document.getElementById('addSaleBtn')?.addEventListener('click', addSale);
+    document.querySelectorAll('.sale-input').forEach(input => {
+        input.addEventListener('change', (e) => updateSale(e.target.dataset.idx, e.target.dataset.field, e.target.value));
+    });
+    document.querySelectorAll('.remove-sale-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => removeSale(e.currentTarget.dataset.idx));
+    });
 };
 
 const renderAll = () => {
+    if (!state.isAuthenticated) return;
     renderDashboard();
     renderOperational();
     renderCapital();
@@ -552,97 +600,120 @@ const renderAll = () => {
     renderSales();
 };
 
-// --- Handlers ---
+// --- DB Interaction Handlers ---
 
-const addExpense = () => {
-    state.expenses.push({ id: generateId(), name: "New Item", quantity: 0, rate: 0, total: 0, date: getNextDate(state.expenses), category: "Misc" });
-    saveState();
+const addExpense = async () => {
+    const item = { id: generateId(), name: "New Item", quantity: 0, rate: 0, total: 0, date: getNextDate(state.expenses), category: "Misc" };
+    await db.expenses.add(item);
+    await checkAuth();
 };
-const updateExpense = (idx, field, val) => {
-    const e = state.expenses[idx];
-    e[field] = (field === 'quantity' || field === 'rate') ? Number(val) : val;
-    e.total = e.quantity * e.rate;
-    saveState();
+const updateExpense = async (idx, field, val) => {
+    const item = state.expenses[idx];
+    item[field] = (field === 'quantity' || field === 'rate') ? Number(val) : val;
+    item.total = item.quantity * item.rate;
+    await db.expenses.put(item);
+    await checkAuth();
 };
-const removeExpense = (idx) => {
-    state.expenses.splice(idx, 1);
-    saveState();
-};
-
-const addCapital = () => {
-    state.capitalCosts.push({ id: generateId(), name: "New Cost", category: "Misc", total: 0, date: getNextDate(state.capitalCosts), cost: 0 });
-    saveState();
-};
-const updateCapital = (idx, field, val) => {
-    const c = state.capitalCosts[idx];
-    c[field] = (field === 'acres' || field === 'rentPerAcre' || field === 'cost') ? Number(val) : val;
-    if (c.category === 'Land Rent') c.total = (c.acres || 0) * (c.rentPerAcre || 0);
-    else c.total = c.cost || 0;
-    saveState();
-};
-const removeCapital = (idx) => {
-    state.capitalCosts.splice(idx, 1);
-    saveState();
+const removeExpense = async (idx) => {
+    const item = state.expenses[idx];
+    await db.expenses.delete(item.id);
+    await checkAuth();
 };
 
-const addSeed = () => {
-    state.fishSeeds.push({ id: generateId(), variety: "New Variety", quantity: 0, pricePerSeed: 0, total: 0, date: getNextDate(state.fishSeeds) });
-    saveState();
+const addCapital = async () => {
+    const item = { id: generateId(), name: "New Cost", category: "Misc", total: 0, date: getNextDate(state.capitalCosts), cost: 0 };
+    await db.capitalCosts.add(item);
+    await checkAuth();
 };
-const updateSeed = (idx, field, val) => {
-    const s = state.fishSeeds[idx];
-    s[field] = (field === 'quantity' || field === 'pricePerSeed') ? Number(val) : val;
-    s.total = s.quantity * s.pricePerSeed;
-    saveState();
+const updateCapital = async (idx, field, val) => {
+    const item = state.capitalCosts[idx];
+    item[field] = (field === 'acres' || field === 'rentPerAcre' || field === 'cost') ? Number(val) : val;
+    if (item.category === 'Land Rent') item.total = (item.acres || 0) * (item.rentPerAcre || 0);
+    else item.total = item.cost || 0;
+    await db.capitalCosts.put(item);
+    await checkAuth();
 };
-const removeSeed = (idx) => {
-    state.fishSeeds.splice(idx, 1);
-    saveState();
-};
-
-const addPond = () => {
-    state.fishStock.push({ id: generateId(), pondNumber: "#", date: new Date().toISOString().split('T')[0], varieties: [] });
-    saveState();
-};
-const updatePond = (pIdx, field, val) => {
-    state.fishStock[pIdx][field] = val;
-    saveState();
-};
-const removePond = (pIdx) => {
-    state.fishStock.splice(pIdx, 1);
-    saveState();
-};
-const addVariety = (pIdx) => {
-    state.fishStock[pIdx].varieties.push({ id: generateId(), name: "New Variety", quantity: 0 });
-    saveState();
-};
-const updateVariety = (pIdx, vIdx, field, val) => {
-    state.fishStock[pIdx].varieties[vIdx][field] = field === 'quantity' ? Number(val) : val;
-    saveState();
-};
-const removeVariety = (pIdx, vIdx) => {
-    state.fishStock[pIdx].varieties.splice(vIdx, 1);
-    saveState();
+const removeCapital = async (idx) => {
+    const item = state.capitalCosts[idx];
+    await db.capitalCosts.delete(item.id);
+    await checkAuth();
 };
 
-const addSale = () => {
-    state.fishSales.push({ id: generateId(), date: getNextDate(state.fishSales), variety: "Mixed", fishCount: 0, weightKg: 0, ratePerKg: 0, totalPrice: 0 });
-    saveState();
+const addSeed = async () => {
+    const item = { id: generateId(), variety: "New Variety", quantity: 0, pricePerSeed: 0, total: 0, date: getNextDate(state.fishSeeds) };
+    await db.fishSeeds.add(item);
+    await checkAuth();
 };
-const updateSale = (idx, field, val) => {
-    const s = state.fishSales[idx];
-    s[field] = (field !== 'variety' && field !== 'date') ? Number(val) : val;
-    s.totalPrice = s.weightKg * s.ratePerKg;
-    saveState();
+const updateSeed = async (idx, field, val) => {
+    const item = state.fishSeeds[idx];
+    item[field] = (field === 'quantity' || field === 'pricePerSeed') ? Number(val) : val;
+    item.total = item.quantity * item.pricePerSeed;
+    await db.fishSeeds.put(item);
+    await checkAuth();
 };
-const removeSale = (idx) => {
-    state.fishSales.splice(idx, 1);
-    saveState();
+const removeSeed = async (idx) => {
+    const item = state.fishSeeds[idx];
+    await db.fishSeeds.delete(item.id);
+    await checkAuth();
+};
+
+const addPond = async () => {
+    const item = { id: generateId(), pondNumber: "#", date: new Date().toISOString().split('T')[0], varieties: [] };
+    await db.fishStock.add(item);
+    await checkAuth();
+};
+const updatePond = async (pIdx, field, val) => {
+    const pond = state.fishStock[pIdx];
+    pond[field] = val;
+    await db.fishStock.put(pond);
+    await checkAuth();
+};
+const removePond = async (pIdx) => {
+    const pond = state.fishStock[pIdx];
+    await db.fishStock.delete(pond.id);
+    await checkAuth();
+};
+const addVariety = async (pIdx) => {
+    const pond = state.fishStock[pIdx];
+    pond.varieties.push({ id: generateId(), name: "New Variety", quantity: 0 });
+    await db.fishStock.put(pond);
+    await checkAuth();
+};
+const updateVariety = async (pIdx, vIdx, field, val) => {
+    const pond = state.fishStock[pIdx];
+    pond.varieties[vIdx][field] = field === 'quantity' ? Number(val) : val;
+    await db.fishStock.put(pond);
+    await checkAuth();
+};
+const removeVariety = async (pIdx, vIdx) => {
+    const pond = state.fishStock[pIdx];
+    pond.varieties.splice(vIdx, 1);
+    await db.fishStock.put(pond);
+    await checkAuth();
+};
+
+const addSale = async () => {
+    const item = { id: generateId(), date: getNextDate(state.fishSales), variety: "Mixed", fishCount: 0, weightKg: 0, ratePerKg: 0, totalPrice: 0 };
+    await db.fishSales.add(item);
+    await checkAuth();
+};
+const updateSale = async (idx, field, val) => {
+    const item = state.fishSales[idx];
+    item[field] = (field !== 'variety' && field !== 'date') ? Number(val) : val;
+    item.totalPrice = item.weightKg * item.ratePerKg;
+    await db.fishSales.put(item);
+    await checkAuth();
+};
+const removeSale = async (idx) => {
+    const item = state.fishSales[idx];
+    await db.fishSales.delete(item.id);
+    await checkAuth();
 };
 
 // --- PDF Generation ---
 
 const generatePdf = () => {
+    const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
@@ -663,7 +734,7 @@ const generatePdf = () => {
     doc.text("Financial Summary", 15, y);
     y += 10;
     
-    autoTable(doc, {
+    doc.autoTable({
         startY: y,
         head: [['Category', 'Amount (Rs.)']],
         body: [
@@ -686,31 +757,99 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     initTabs();
     
-    document.getElementById('loginForm').addEventListener('submit', handleLogin);
-    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+    document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
+    document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
     
     const updateForm = document.getElementById('updateAuthForm');
     if (updateForm) updateForm.addEventListener('submit', handleUpdateAuth);
     
-    // Initial icon creation
-    renderIcons();
-
-    document.getElementById('downloadPdfAll').addEventListener('click', generatePdf);
-    document.getElementById('clearData').addEventListener('click', () => {
-        if(confirm("Are you sure?")) {
+    document.getElementById('downloadPdfAll')?.addEventListener('click', generatePdf);
+    document.getElementById('clearData')?.addEventListener('click', async () => {
+        if(confirm("Are you sure? This will delete all your local database entries.")) {
+            await db.delete();
             localStorage.clear();
             location.reload();
         }
     });
-});
 
-// Expose handlers to window for HTML onclick/onchange (since we are a module)
-Object.assign(window, {
-    addExpense, updateExpense, removeExpense,
-    addCapital, updateCapital, removeCapital,
-    addSeed, updateSeed, removeSeed,
-    addPond, updatePond, removePond,
-    addVariety, updateVariety, removeVariety,
-    addSale, updateSale, removeSale,
-    toggleEdit
+    // Add manual backup feature to settings
+    const settingsTab = document.getElementById('tab-settings');
+    if (settingsTab) {
+        const backupSection = document.createElement('div');
+        backupSection.className = 'max-w-md mx-auto mt-6 bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm';
+        backupSection.innerHTML = `
+            <div class="flex items-center gap-4 mb-6">
+                <div class="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600">
+                    <i data-lucide="database" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-black text-slate-900">Data Management</h3>
+                    <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Backup & Restore offline data</p>
+                </div>
+            </div>
+            <div class="flex flex-col gap-3">
+                <button id="exportData" class="w-full py-4 px-6 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-2xl transition-all font-bold text-sm flex items-center justify-center gap-2">
+                    <i data-lucide="upload" class="w-4 h-4"></i> Export Database (JSON)
+                </button>
+                <div class="relative">
+                    <input type="file" id="importFile" class="hidden" accept=".json">
+                    <button id="importDataBtn" class="w-full py-4 px-6 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-2xl transition-all font-bold text-sm flex items-center justify-center gap-2">
+                        <i data-lucide="download" class="w-4 h-4"></i> Import Database (JSON)
+                    </button>
+                </div>
+            </div>
+        `;
+        settingsTab.appendChild(backupSection);
+        
+        document.getElementById('exportData').addEventListener('click', async () => {
+            const data = {
+                expenses: await db.expenses.toArray(),
+                capitalCosts: await db.capitalCosts.toArray(),
+                fishSeeds: await db.fishSeeds.toArray(),
+                fishStock: await db.fishStock.toArray(),
+                fishSales: await db.fishSales.toArray()
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `kashif_backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+        });
+
+        document.getElementById('importDataBtn').addEventListener('click', () => {
+            document.getElementById('importFile').click();
+        });
+
+        document.getElementById('importFile').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    await db.transaction('rw', db.expenses, db.capitalCosts, db.fishSeeds, db.fishStock, db.fishSales, async () => {
+                        await db.expenses.clear();
+                        await db.capitalCosts.clear();
+                        await db.fishSeeds.clear();
+                        await db.fishStock.clear();
+                        await db.fishSales.clear();
+                        
+                        if (data.expenses) await db.expenses.bulkAdd(data.expenses);
+                        if (data.capitalCosts) await db.capitalCosts.bulkAdd(data.capitalCosts);
+                        if (data.fishSeeds) await db.fishSeeds.bulkAdd(data.fishSeeds);
+                        if (data.fishStock) await db.fishStock.bulkAdd(data.fishStock);
+                        if (data.fishSales) await db.fishSales.bulkAdd(data.fishSales);
+                    });
+                    alert("Data imported successfully!");
+                    location.reload();
+                } catch (err) {
+                    alert("Failed to import data. Invalid file format.");
+                }
+            };
+            reader.readAsText(file);
+        });
+        
+        createIcons({ icons });
+    }
 });
