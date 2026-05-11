@@ -5,12 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kashif Aquaculture Excellence</title>
     <meta name="description" content="Management system for Kashif Aquaculture Excellence" />
-    <meta name="theme-color" content="#10b981" />
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icon-512.svg">
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- jsPDF and AutoTable CDN -->
@@ -50,85 +49,95 @@
 </head>
 <body class="min-h-screen text-slate-900">
 
-    <!-- Login Overlay -->
-    <div id="loginOverlay" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl space-y-8 fade-in">
-            <div class="text-center space-y-2">
-                <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                    <i data-lucide="lock" class="w-10 h-10"></i>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="fixed inset-0 z-[100] bg-slate-50 flex items-center justify-center p-4">
+        <div class="w-full max-w-md">
+            <div class="bg-white rounded-[2.5rem] shadow-2xl shadow-emerald-500/10 border border-slate-100 overflow-hidden">
+                <div class="bg-gradient-to-br from-emerald-600 to-teal-700 p-10 text-center relative">
+                    <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                    <div class="relative z-10">
+                        <div class="w-20 h-20 bg-white/20 backdrop-blur-xl rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl border border-white/30">
+                            <i data-lucide="lock" class="text-white w-10 h-10"></i>
+                        </div>
+                        <h2 class="text-3xl font-black text-white tracking-tight">Access Restricted</h2>
+                        <p class="text-emerald-100/80 mt-2 font-medium">Kashif Aquaculture Excellence</p>
+                    </div>
                 </div>
-                <h2 class="text-3xl font-black text-slate-900 tracking-tight">Access Restricted</h2>
-                <p class="text-slate-500 font-medium">Please sign in to manage your aquaculture records.</p>
+                <div class="p-10 space-y-6">
+                    <div id="loginError" class="hidden p-4 bg-red-50 border border-red-100 text-red-600 text-sm font-bold rounded-2xl animate-pulse">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                            <span>Invalid credentials. Access denied.</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Authorized Email</label>
+                        <div class="relative">
+                            <i data-lucide="mail" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
+                            <input type="email" id="loginEmail" placeholder="email@example.com" class="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 focus:bg-white outline-none transition-all font-bold text-slate-700">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Secure Password</label>
+                        <div class="relative">
+                            <i data-lucide="key" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
+                            <input type="password" id="loginPassword" placeholder="••••••••" class="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 focus:bg-white outline-none transition-all font-bold text-slate-700 tracking-widest">
+                        </div>
+                    </div>
+                    <button id="loginBtn" class="w-full py-5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-[1.5rem] font-black text-lg shadow-xl shadow-emerald-200 hover:shadow-emerald-300 transition-all active:scale-[0.98] flex items-center justify-center gap-3">
+                        <span>Unlock System</span>
+                        <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                    </button>
+                    <p class="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">Enterprise Management System v1.0</p>
+                </div>
             </div>
-
-            <form id="loginForm" class="space-y-4">
-                <div class="space-y-1">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-4">Email Address</label>
-                    <input type="email" id="loginEmail" required placeholder="admin@kashif.com" class="w-full h-14 px-6 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 transition-all font-bold">
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-4">Password</label>
-                    <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full h-14 px-6 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-emerald-500 transition-all font-bold">
-                </div>
-                <div id="loginError" class="hidden text-sm font-bold text-red-500 text-center bg-red-50 p-3 rounded-xl">
-                    Invalid email or password.
-                </div>
-                <button type="submit" class="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-lg shadow-emerald-200 transition-all font-black uppercase tracking-widest mt-4">
-                    Unlock Dashboard
-                </button>
-            </form>
-            
-            <p class="text-center text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-                Kashif Aquaculture Excellence &copy; 2026
-            </p>
         </div>
     </div>
 
-    <!-- Main Content (Hidden until login) -->
-    <div id="mainContainer" class="hidden">
+    <div id="appShell" class="hidden">
         <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-emerald-100/50 shadow-sm transition-all duration-300">
-        <div class="container mx-auto px-4 h-24 flex items-center justify-between">
-            <!-- Logo Section -->
-            <div class="flex items-center gap-5 group cursor-pointer">
-                <div class="relative flex items-center justify-center">
-                    <div class="absolute inset-0 bg-emerald-500/20 blur-xl rounded-full scale-150"></div>
-                    <div class="relative w-16 h-16 flex items-center justify-center">
-                        <div class="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-[1.25rem] flex items-center justify-center shadow-xl shadow-emerald-200/50 relative overflow-hidden">
-                            <i data-lucide="fish" class="text-white w-7 h-7 relative z-10"></i>
+            <div class="container mx-auto px-4 h-24 flex items-center justify-between">
+                <!-- Logo Section -->
+                <div class="flex items-center gap-5 group cursor-pointer">
+                    <div class="relative flex items-center justify-center">
+                        <div class="absolute inset-0 bg-emerald-500/20 blur-xl rounded-full scale-150"></div>
+                        <div class="relative w-16 h-16 flex items-center justify-center">
+                            <div class="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-[1.25rem] flex items-center justify-center shadow-xl shadow-emerald-200/50 relative overflow-hidden">
+                                <i data-lucide="fish" class="text-white w-7 h-7 relative z-10"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col justify-center">
+                        <div class="flex items-center gap-2">
+                            <h1 class="text-4xl font-black tracking-tight text-slate-900 leading-none">
+                                KASHIF<span class="text-emerald-500">.</span>
+                            </h1>
+                        </div>
+                        <div class="flex items-center gap-3 mt-1.5">
+                            <div class="h-[2px] w-8 bg-gradient-to-r from-emerald-500 to-transparent rounded-full"></div>
+                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[0.5em] leading-none whitespace-nowrap">
+                                Aquaculture <span class="text-emerald-600">Excellence</span>
+                            </p>
                         </div>
                     </div>
                 </div>
-                <div class="flex flex-col justify-center">
-                    <div class="flex items-center gap-2">
-                        <h1 class="text-4xl font-black tracking-tight text-slate-900 leading-none">
-                            KASHIF<span class="text-emerald-500">.</span>
-                        </h1>
-                    </div>
-                    <div class="flex items-center gap-3 mt-1.5">
-                        <div class="h-[2px] w-8 bg-gradient-to-r from-emerald-500 to-transparent rounded-full"></div>
-                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-[0.5em] leading-none whitespace-nowrap">
-                            Aquaculture <span class="text-emerald-600">Excellence</span>
-                        </p>
-                    </div>
+
+                <!-- Global Actions -->
+                <div class="flex items-center gap-2">
+                    <button id="downloadPdfAll" class="hidden sm:flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-100 transition-all font-bold text-sm">
+                        <i data-lucide="download" class="w-4 h-4"></i> Download Full Report
+                    </button>
+                    <button id="logoutBtn" class="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all" title="Logout">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                    <button id="clearData" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" title="Clear All Data">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    </button>
                 </div>
             </div>
+        </header>
 
-            <!-- Global Actions -->
-            <div class="flex items-center gap-2">
-                <button id="logoutBtn" class="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="Logout">
-                    <i data-lucide="log-out" class="w-5 h-5"></i>
-                </button>
-                <button id="downloadPdfAll" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-100 transition-all font-bold text-sm">
-                    <i data-lucide="download" class="w-4 h-4"></i> Download Full Report
-                </button>
-                <button id="clearData" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all" title="Clear All Data">
-                    <i data-lucide="trash-2" class="w-5 h-5"></i>
-                </button>
-            </div>
-        </div>
-    </header>
-
-    <main class="container mx-auto px-4 py-8">
+        <main class="container mx-auto px-4 py-8">
         <!-- Tabs Navigation -->
         <div class="flex items-center space-x-2 overflow-x-auto pb-4 mb-8 scrollbar-hide" id="tabsList">
             <button data-tab="dashboard" class="tab-trigger active-tab flex items-center px-6 py-3 whitespace-nowrap rounded-xl font-extrabold uppercase tracking-tighter transition-all duration-300 text-emerald-800/60 hover:bg-emerald-100/50">
@@ -148,9 +157,6 @@
             </button>
             <button data-tab="sales" class="tab-trigger flex items-center px-6 py-3 whitespace-nowrap rounded-xl font-extrabold uppercase tracking-tighter transition-all duration-300 text-emerald-800/60 hover:bg-emerald-100/50">
                 <i data-lucide="dollar-sign" class="w-5 h-5 mr-2"></i> Fish Sales
-            </button>
-            <button data-tab="settings" class="tab-trigger flex items-center px-6 py-3 whitespace-nowrap rounded-xl font-extrabold uppercase tracking-tighter transition-all duration-300 text-slate-800/60 hover:bg-slate-100/50">
-                <i data-lucide="settings" class="w-5 h-5 mr-2"></i> Settings
             </button>
         </div>
 
@@ -266,48 +272,8 @@
                 <!-- Sales records here -->
             </div>
         </div>
+    </main>
 
-        <!-- Settings Content -->
-        <div id="tab-settings" class="tab-content hidden space-y-8">
-            <div class="max-w-md mx-auto bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
-                <div class="flex items-center gap-4 mb-8">
-                    <div class="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-600">
-                        <i data-lucide="shield-check" class="w-6 h-6"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-black text-slate-900">Security Settings</h3>
-                        <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Update your master credentials</p>
-                    </div>
-                </div>
-
-                <form id="updateAuthForm" class="space-y-4">
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-4">New Username</label>
-                        <input type="text" id="newUsername" required class="w-full h-14 px-6 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 transition-all font-bold">
-                    </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-4">New Password</label>
-                        <input type="password" id="newPassword" required class="w-full h-14 px-6 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 transition-all font-bold">
-                    </div>
-                    <div id="settingsMsg" class="hidden text-xs font-bold text-center p-3 rounded-xl"></div>
-                    <button type="submit" class="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-lg shadow-indigo-200 transition-all font-black uppercase tracking-widest mt-4">
-                        Save Changes
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <script type="module" src="script.js"></script>
-    <script>
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Service Worker registered', reg))
-                    .catch(err => console.error('Service Worker failed', err));
-            });
-        }
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>

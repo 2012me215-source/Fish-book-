@@ -6,13 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "lint": "echo 'No linting needed for plain JS'"
+    "preview": "vite preview"
   },
   "devDependencies": {
     "vite": "^6.0.0"
-  },
-  "dependencies": {
-    "dexie": "^4.4.2"
   }
 }
